@@ -1,0 +1,5 @@
+fastapi
+databases[asyncpg]
+uvicorn[standard]
+asyncpg
+fastapi[all]
