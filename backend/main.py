@@ -29,8 +29,6 @@ def highlight_term(text: str, term: str) -> str:
 async def get_songs(limit: int = Query(100, ge=1, le=1000)) -> List[Dict[str, Any]]:
     """
     Get top songs from the database.
-    Since there's no popularity/rating column visible, this returns songs ordered by ID.
-    You can modify the ORDER BY clause based on your actual ranking criteria.
     """
     sql = """
         SELECT DISTINCT s.id, s.title, s.artist, s.external_link
