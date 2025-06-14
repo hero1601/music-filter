@@ -3,3 +3,5 @@ databases[asyncpg]
 uvicorn[standard]
 asyncpg
 fastapi[all]
+numpy
+sentence_transformers
