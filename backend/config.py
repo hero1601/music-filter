@@ -9,4 +9,4 @@ DB_NAME = os.getenv("DB_NAME", "lyrics_db")
 DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 # Debug: Print the connection string (remove in production)
-print(f"Connecting to: {DATABASE_URL}")
+# print(f"Connecting to: {DATABASE_URL}")

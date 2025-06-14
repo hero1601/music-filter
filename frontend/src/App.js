@@ -22,13 +22,18 @@ function App() {
       <div>
         {results.map(song => (
           <div key={song.id}>
-            <h3>{song.title} - {song.artist}</h3>
+            <h3 style={{ marginBottom: 0 }}>{song.title} - {song.artist}</h3>
+            {(
+                <a href={song.external_link} target="_blank" rel="noopener noreferrer">
+                  Song Link
+                </a>
+            )}
             <ul>
               {song.matched_lines.map((line, i) => (
                 <li key={i} dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") }} />
               ))}
             </ul>
-          </div>
+        </div>
         ))}
       </div>
     </div>
