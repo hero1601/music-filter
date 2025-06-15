@@ -26,13 +26,11 @@ class SemanticSearchEngine:
         self.metadata_file = self.data_dir / 'line_metadata.json'
     
     def load_model(self):
-        """Load the sentence transformer model"""
         if self.model is None:
             self.model = SentenceTransformer(self.model_name)
     
     async def build_embeddings(self, database):
-        """Build embeddings for all lyric lines"""
-        
+
         if self.model is None:
             self.load_model()
         
@@ -48,7 +46,7 @@ class SemanticSearchEngine:
         rows = await database.fetch_all(query=sql)
         
         if not rows:
-            print("❌ No lyrics found in database!")
+            print("No lyrics found in database!")
             return False
         
         # Prepare texts and metadata
@@ -71,7 +69,7 @@ class SemanticSearchEngine:
                 })
         
         if not texts:
-            print("❌ No valid lyric lines found!")
+            print("No valid lyric lines found!")
             return False
         
         # Generate embeddings in batches for memory efficiency
@@ -101,7 +99,6 @@ class SemanticSearchEngine:
         return True
     
     async def save_embeddings(self):
-        """Save embeddings and metadata to disk"""
         
         np.save(self.embeddings_file, self.embeddings) # type: ignore
         

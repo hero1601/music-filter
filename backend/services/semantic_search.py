@@ -7,7 +7,7 @@ async def build_embeddings(database):
         success = await semantic_search.build_embeddings(database)
         if success:
             return {
-                "message": "✅ Embeddings built successfully!",
+                "message": "Embeddings built successfully!",
                 "total_lines": len(semantic_search.metadata),
                 "embedding_dimensions": semantic_search.embeddings.shape[1], # type: ignore
                 "model_used": semantic_search.model_name
