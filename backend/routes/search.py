@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Query
-from typing import Dict, List
+from typing import Dict, List, Optional
 from db.database import database
 from services.semantic_search import semantic_search
 from utils.helpers import highlight_term
@@ -37,28 +37,39 @@ async def search_songs(query: str = Query(..., min_length=1)) -> Dict[str, List]
 @router.get("/semantic-search")
 async def semantic_search_endpoint(
     query: str = Query(..., min_length=1),
-    similarity_threshold: float = Query(0.2, ge=0.0, le=1.0),
+    exclude: Optional[List[str]] = Query(None),
+    similarity_threshold: float = Query(0.45, ge=0.0, le=1.0),
+    exclude_threshold: float = Query(0.4, ge=0.0, le=1.0),
     max_results: int = Query(10, ge=1, le=200),
     group_by_song: bool = Query(True)
 ) -> Dict:
     
+    print(query)
+    print(exclude)
+    
     try:
         results = semantic_search.semantic_search(
-            query, top_k=max_results * 3, similarity_threshold=similarity_threshold
+            query=query,
+            top_k=max_results * 3,
+            similarity_threshold=similarity_threshold,
+            exclude_queries=exclude,
+            exclude_threshold=exclude_threshold,
         )
-
+        
         if not results:
             return {
                 "results": [],
                 "query": query,
+                "exclude": exclude,
                 "message": "No results found. Try lowering the threshold."
             }
-
+        
         if group_by_song:
             grouped = semantic_search.group_by_songs(results)
             return {
                 "results": grouped[:max_results],
                 "query": query,
+                "exclude": exclude,
                 "total_songs": len(grouped),
                 "search_type": "semantic_grouped"
             }
@@ -66,68 +77,12 @@ async def semantic_search_endpoint(
             return {
                 "results": results[:max_results],
                 "query": query,
+                "exclude": exclude,
                 "total_matches": len(results),
                 "search_type": "semantic_lines"
             }
     except Exception as e:
-        return {"error": str(e), "results": []}
-    
-@router.get("/search-comparison")
-async def search_comparison(
-    query: str = Query(..., min_length=1)
-) -> Dict:
-    
-    """
-    Compare traditional keyword search vs semantic search
-    """
-    
-    try:
-        # Your existing keyword search
-        query_lower = query.lower()
-        sql = """
-        SELECT s.id, s.title, s.artist, s.external_link, l.line_number, l.lyric_line
-        FROM songs s
-        JOIN lyrics l ON s.id = l.song_id
-        WHERE l.lyric_line ILIKE :pattern
-        ORDER BY s.id, l.line_number
-        """
-        keyword_rows = await database.fetch_all(query=sql, values={"pattern": f"%{query_lower}%"})
-        
-        # Process keyword results (your existing logic)
-        keyword_results = {}
-        for row in keyword_rows:
-            song_id = row["id"]
-            if song_id not in keyword_results:
-                keyword_results[song_id] = {
-                    "title": row["title"],
-                    "artist": row["artist"],
-                    "external_link": row["external_link"],
-                    "matched_lines": [],
-                }
-            keyword_results[song_id]["matched_lines"].append({
-                "line_number": row["line_number"],
-                "lyric_line": row["lyric_line"]
-            })
-        
-        # Semantic search results
-        semantic_results = semantic_search.semantic_search(query=query, top_k=100, similarity_threshold=0.3)
-        semantic_grouped = semantic_search.group_by_songs(semantic_results)
-        
-        return {
-            "query": query,
-            "keyword_search": {
-                "total_songs": len(keyword_results),
-                "results": list(keyword_results.values())[:10]
-            },
-            "semantic_search": {
-                "total_songs": len(semantic_grouped),
-                "results": semantic_grouped[:10]
-            }
-        }
-    
-    except Exception as e:
-        return {"error": str(e)}
-    
+        return {"error": str(e), "results": []}    
     
 @router.get("/search-status")
 async def search_status():
