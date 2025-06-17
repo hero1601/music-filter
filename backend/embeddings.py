@@ -2,10 +2,10 @@ import numpy as np
 import json
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
-from typing import List, Dict
+from typing import List, Dict, Optional, Union
 
 class SemanticSearchEngine:
-    def __init__(self, model_name: str = 'all-MiniLM-L6-v2'):
+    def __init__(self, model_name: str = 'paraphrase-multilingual-mpnet-base-v2'):
         """
         Initialize semantic search engine
         
@@ -120,51 +120,100 @@ class SemanticSearchEngine:
         return True
     
     def semantic_search(
-        self, 
-        query: str, 
-        top_k: int = 100, 
-        similarity_threshold: float = 0.3
+        self,
+        query: str,
+        top_k: int = 100,
+        similarity_threshold: float = 0.3,
+        exclude_queries: Optional[Union[str, List[str]]] = None,
+        exclude_threshold: float = 0.6,
     ) -> List[Dict]:
+        
         """
-        Perform semantic search on lyric lines
+        Perform semantic search with optional multiple exclusions.
         
         Args:
-            query: Search query
-            top_k: Maximum results to return
-            similarity_threshold: Minimum similarity score (0-1)
-        
+            query: Search query (positive intent).
+            top_k: Max results to return.
+            similarity_threshold: Min similarity to include.
+            exclude_queries: String or list of strings to exclude (negative intent).
+            exclude_threshold: Similarity threshold to exclude.
+            
         Returns:
-            List of matching lyric lines with similarity scores
+            List of dict results with keys:
+                - lyric line metadata
+                - similarity_score
+                - excluded (bool)
+                - excluded_due_to (list of matched exclude query strings)
+                - excluded_lines (list of tuples (exclude_query, similarity_score))
         """
+
         if self.model is None:
             self.load_model()
-        
+
         if self.embeddings is None:
-            raise ValueError("❌ Embeddings not loaded! Call load_embeddings() first.")
+            raise ValueError("Embeddings not loaded! Call load_embeddings() first.")
         
-        # Generate query embedding
-        query_embedding = self.model.encode([query]) # type: ignore
-        
-        # Calculate cosine similarities
-        similarities = np.dot(self.embeddings, query_embedding.T).flatten()
-        
-        # Normalize for proper cosine similarity
-        embedding_norms = np.linalg.norm(self.embeddings, axis=1)
+        # Embed main query
+        query_embedding = self.model.encode([query])  # type: ignore
         query_norm = np.linalg.norm(query_embedding)
+        
+        embedding_norms = np.linalg.norm(self.embeddings, axis=1)
+        similarities = np.dot(self.embeddings, query_embedding.T).flatten()
         similarities = similarities / (embedding_norms * query_norm)
         
-        # Get top matches above threshold
-        top_indices = np.argsort(similarities)[::-1][:top_k]
-        
+        indices = np.argsort(similarities)[::-1]
+        candidate_song_ids = set(self.metadata[idx]['song_id'] for idx in indices)
+
+        if exclude_queries:
+            if isinstance(exclude_queries, str):
+                exclude_queries = [exclude_queries]
+            exclude_embeddings = self.model.encode(exclude_queries)
+            exclude_norms = np.linalg.norm(exclude_embeddings, axis=1)
+        else:
+            exclude_embeddings = None
+
+        songs_to_exclude = set()
+
+        if exclude_embeddings is not None and exclude_queries is not None:
+            candidate_indices = [i for i, meta in enumerate(self.metadata) 
+                                 if meta['song_id'] in candidate_song_ids]
+
+            # Compute exclusion similarity for all candidate lines
+            candidate_embeddings = self.embeddings[candidate_indices]
+            candidate_norms = embedding_norms[candidate_indices]
+
+            exclude_sims = np.dot(candidate_embeddings, exclude_embeddings.T)
+            exclude_sims /= (candidate_norms[:, None] * exclude_norms[None, :])
+
+            # Check if any line in the song exceeds exclusion threshold
+            for idx_in_list, global_idx in enumerate(candidate_indices):
+                for ex_idx in range(len(exclude_queries)):
+                    if exclude_sims[idx_in_list, ex_idx] >= exclude_threshold:
+                        song_id = self.metadata[global_idx]['song_id']
+                        songs_to_exclude.add(song_id)
+                        break
+
+        # Filter out results from excluded songs and below similarity threshold
         results = []
-        for idx in top_indices:
-            similarity_score = similarities[idx]
-            if similarity_score >= similarity_threshold:
-                result = self.metadata[idx].copy()
-                result['similarity_score'] = float(similarity_score)
-                results.append(result)
-        
+        for idx in indices:
+            song_id = self.metadata[idx]['song_id']
+            if song_id in songs_to_exclude:
+                continue
+
+            sim_score = similarities[idx]
+            if sim_score < similarity_threshold:
+                continue
+
+            result = self.metadata[idx].copy()
+            result.update({
+                'similarity_score': float(sim_score),
+                'excluded': False,
+                'excluded_due_to': [],
+                'excluded_lines': []
+            })
+            results.append(result)
         return results
+
     
     def group_by_songs(self, search_results: List[Dict]) -> List[Dict]:
         """Group search results by song"""
