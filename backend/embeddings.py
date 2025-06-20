@@ -108,7 +108,7 @@ class SemanticSearchEngine:
     async def load_embeddings(self):
         """Load embeddings from disk"""
         if not self.embeddings_file.exists() or not self.metadata_file.exists():
-            print("⚠️  Embeddings not found. Run /build-embeddings first.")
+            print("Embeddings not found. Run /build-embeddings first.")
             return False
         
         self.embeddings = np.load(self.embeddings_file)

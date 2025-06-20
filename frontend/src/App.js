@@ -1,41 +1,63 @@
 import React, { useState } from 'react';
-import axios from 'axios';
-import config from './config';
+import FilterControls from './components/FilterControls';
+import SearchResults from './components/SearchResults';
+import { searchSongs } from './services/searchService';
 
 function App() {
-  const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
+  const [filters, setFilters] = useState({
+    includeWords: [],
+    excludeWords: []
+  });
+  const [loading, setLoading] = useState(false);
 
+  const handleSearch = async () => {
+    // All include words combined
+    const allIncludeWords = filters.includeWords
+      .filter(word => word && word.trim())
+      .join(' ')
+      .trim();
+    
+    console.log('Include words:', filters.includeWords);
+    console.log('Combined include:', allIncludeWords);
+    console.log('Exclude words:', filters.excludeWords);
+    
+    if (!allIncludeWords) {
+      alert('Please add at least one word to include');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const searchResults = await searchSongs(allIncludeWords, filters.excludeWords);
+      setResults(searchResults);
+    } catch (error) {
+      console.error('Search failed:', error);
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const search = async () => {
-    const res = await axios.get(`${config.BACKEND_URL}/search`, {
-      params: { query }
-    });
-    setResults(res.data.results);
+  const handleFilterChange = (newFilters) => {
+    setFilters(newFilters);
   };
 
   return (
     <div className="App">
-      <h1>Lyrics Search</h1>
-      <input value={query} onChange={e => setQuery(e.target.value)} />
-      <button onClick={search}>Search</button>
-      <div>
-        {results.map(song => (
-          <div key={song.id}>
-            <h3 style={{ marginBottom: 0 }}>{song.title} - {song.artist}</h3>
-            {(
-                <a href={song.external_link} target="_blank" rel="noopener noreferrer">
-                  Song Link
-                </a>
-            )}
-            <ul>
-              {song.matched_lines.map((line, i) => (
-                <li key={i} dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") }} />
-              ))}
-            </ul>
-        </div>
-        ))}
-      </div>
+      <h1>Semantic Music Search</h1>
+      
+      <FilterControls 
+        filters={filters}
+        onFilterChange={handleFilterChange}
+        onSearch={handleSearch}
+        loading={loading}
+      />
+      
+      <SearchResults 
+        results={results}
+        loading={loading}
+      />
     </div>
   );
 }
